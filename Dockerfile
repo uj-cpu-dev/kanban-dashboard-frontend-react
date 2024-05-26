@@ -1,32 +1,51 @@
-# Step 1: Build the React app
-FROM node:16 AS build
+# Stage 1: Development stage
+FROM node:lts-buster AS development
 
-# Set the working directory inside the container
-WORKDIR /app
+# Create app directory
+WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json to the working directory
-COPY package*.json ./
+# Copy dependency definitions
+COPY package.json package-lock.json ./
 
-# Install the dependencies
-RUN npm install
+# Install dependencies
+RUN npm ci
 
-# Copy the rest of the application code to the working directory
+# Copy the rest of the application code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Expose the port the app runs on
+EXPOSE 3000
 
-# Step 2: Serve the built app with Nginx
-FROM nginx:alpine
+# Serve the app
+CMD ["npm", "start"]
 
-# Copy the built files from the build stage to the Nginx HTML directory
-COPY --from=build /app/build /usr/share/nginx/html
+# Stage 2: Development environment setup
+FROM development as dev-envs
 
-# Copy custom Nginx configuration file
-COPY react-app.conf /etc/nginx/conf.d/default.conf
+# Install additional development tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    useradd -s /bin/bash -m vscode && \
+    groupadd docker && \
+    usermod -aG docker vscode
 
-# Expose port 80
-EXPOSE 80
+# Stage 3: Production stage
+FROM node:lts-buster AS production
 
-# Start Nginx server
-CMD ["nginx", "-g", "daemon off;"]
+# Create app directory
+WORKDIR /usr/src/app
+
+# Copy dependency definitions
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy the rest of the application code
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 3000
+
+# Serve the app
+CMD ["npm", "start"]
